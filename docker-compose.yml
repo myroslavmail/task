@@ -1,65 +1,82 @@
-nginx:
-    image: 'nginx:latest'
-    container_name: myng
-    restart: always
-    log_driver: syslog
-    log_opt:
-      syslog-address: "udp://logs6.papertrailapp.com:13439"
-      tag: "nginx"
-    ports:
-        - '80:80'
-    links:
-        - wordpress
-    volumes:
-        - ./nginx/app.conf:/etc/nginx/conf.d/app.conf
-        - ./public:/var/www/html
+version: '3.7'
 
-wordpress:
-    image: 'wordpress:4.9.3-php7.2-fpm'
-    container_name: mywp
-    restart: always
-    log_driver: syslog
-    log_opt:
-      syslog-address: "udp://logs6.papertrailapp.com:13439"
-      tag: "wordpress"
-    links:
-      - mysql
-    ports:
-      - 8080:80
-    environment:
-      - WORDPRESS_DB_HOST=mysql
-      - WORDPRESS_DB_USER=root
-      - WORDPRESS_DB_PASSWORD=32123ewqwe
-      - WORDPRESS_DB_NAME=wordpress
-    volumes:
-      - ./public:/var/www/html
+secrets:
+    db_pass:
+        file: ./db_pass.txt
+    db_user:
+        file: ./db_user.txt
 
-mysql:
-    image: 'mariadb'
-    container_name: myma
-    restart: always
-    log_driver: syslog
-    log_opt:
-      syslog-address: "udp://logs6.papertrailapp.com:13439"
-      tag: "mysql"
-    ports:
-      - '3306:3306'
-    volumes:
-      - ./db-data:/var/lib/mysql
-      - ./logs:/var/log
-    environment:
-      - MYSQL_ROOT_PASSWORD=32123ewqwe
+services:
+    nginx:
+        image: 'nginx:latest'
+        container_name: nginx
+        restart: always
+        logging:
+            driver: syslog
+            options:
+                syslog-address: "udp://logs6.papertrailapp.com:13439"
+                tag: "nginx"
+        ports:
+            - '80:80'
+        links:
+            - wordpress
+        volumes:
+            - ./nginx/app.conf:/etc/nginx/conf.d/app.conf
+            - ./public:/var/www/html
 
-dd-agent:
-    image: 'store/datadog/agent:6.4.1'
-    container_name: mydd
-    restart: always
-    links:
-     - nginx
-     - mysql
-    volumes:
-     - /var/run/docker.sock:/var/run/docker.sock:ro
-     - /proc/:/host/proc/:ro
-     - /sys/fs/cgroup/:/host/sys/fs/cgroup:ro
-    environment:
-     - DD_API_KEY=9222ef752bb7c5820a9a57a44e6aaaad
+    wordpress:
+        image: 'wordpress:4.9.3-php7.2-fpm'
+        container_name: wordpress
+        restart: always
+        logging:
+            driver: syslog
+            options:
+                syslog-address: "udp://logs6.papertrailapp.com:13439"
+                tag: "wordpress"
+        links:
+            - mysql
+        ports:
+            - 8080:80
+        environment:
+            - WORDPRESS_DB_HOST=mysql
+            - WORDPRESS_DB_USER_FILE=/run/secrets/db_user
+            - WORDPRESS_DB_PASSWORD_FILE=/run/secrets/db_pass
+            - WORDPRESS_DB_NAME=wordpress
+        volumes:
+            - ./public:/var/www/html
+        secrets:
+            - db_pass
+            - db_user
+
+    mysql:
+        image: 'mariadb'
+        restart: always
+        container_name: mysql
+        logging:
+             driver: syslog
+             options:
+                 syslog-address: "udp://logs6.papertrailapp.com:13439"
+                 tag: "mysql"
+        ports:
+            - '3306:3306'
+        volumes:
+            - ./db-data:/var/lib/mysql
+            - ./logs:/var/log
+        environment:
+            - MYSQL_ROOT_PASSWORD_FILE=/run/secrets/db_pass
+        secrets:
+            - db_pass
+
+    dd-agent:
+        image: 'store/datadog/agent:6.4.1'
+        container_name: dd-agent
+        restart: always
+        links:
+            - nginx
+            - mysql
+        volumes:
+            - /var/run/docker.sock:/var/run/docker.sock:ro
+            - /proc/:/host/proc/:ro
+            - /sys/fs/cgroup/:/host/sys/fs/cgroup:ro
+        environment:
+            - DD_API_KEY=9222ef752bb7c5820a9a57a44e6aaaad
