@@ -141,7 +141,7 @@ server {
                 include fastcgi_params;
                 fastcgi_index index.php; # index.php - defauly page to open
                 fastcgi_pass  wordpress:9000; # wordpress container which is actually Wordpress+FPM (fpm web-server that's working with php requests)
-                fastcgi_param SCRIPT_FILENAME /var/www/html/$fastcgi_script_name; (path to the scrip file which is in our case named "index.php")
+                fastcgi_param SCRIPT_FILENAME # /var/www/html/$fastcgi_script_name; (path to the scrip file which is in our case named "index.php")
 	}
 }
 ```
