@@ -29,80 +29,96 @@ All code should be committed to github.com or gitlab.com public repo.
 >
 >•	User/Password to papertrailapp and datadoghq accounts.
 
-**Completed task comments:**
+**Comments:**
 
-Nginx+Wordpress+Mysql(maridb) docker-based system has been built via docker-compose.yml file. Please, get intruduced with the code and comments below:
+Nginx+Wordpress+Mysql(maridb) docker-based system has been built with help of docker-compose.yml file. Please, get acquanted with details below:
 ```sh
 
+version: '3.7'
 
+secrets:
+    db_pass:
+        file: ./db_pass.txt
+    db_user:
+        file: ./db_user.txt
 
-nginx:
-    image: 'nginx:latest'
-    container_name: myng # for my convenience I named the container "myng"
-    restart: always      # whatever happens, container should always be relaunched automatically
-    log_driver: syslog   # the syslog driver the one that works with a docker technology and transfer data to syslog server
-		log_opt:
-      syslog-address: "udp://logs6.papertrailapp.com:13439"  # the url to the Papertrail server which coolects the logs
-      tag: "nginx"  # for the convenience container will be recognized as "nginx" (instead of default container ID option)
-    ports:
-        - '80:80'  
-    links:
-        - wordpress  # wordpress will be running on nginx web-server
-    volumes:
-        - ./nginx/app.conf:/etc/nginx/conf.d/app.conf # It is important to adjust .conf file to add php-mudule
-        - ./public:/var/www/html # folder that contains all the data, was add for testing purpose in most
+services:
+    nginx:
+        image: 'nginx:latest'
+        container_name: nginx  # for my convenience I named the container
+        restart: always        # whatever happens, container should be always relaunched
+        logging:
+            driver: syslog     # the syslog driver the one that works with a docker and transfer data outside
+            options:
+                syslog-address: "udp://logs6.papertrailapp.com:13439" # path to the Papertrail which coolects the logs
+                tag: "nginx"   # for convenience, we'll mark all nginx logs as "nginx" (by default containers ID is used)
+        ports:
+            - '80:80'
+        links:
+            - wordpress        # wordpress container, installed and running on nginx server
+        volumes:
+            - ./nginx/app.conf:/etc/nginx/conf.d/app.conf  # It is important to add php-mudule, so we edit nginx conf file
+            - ./public:/var/www/html  # folder that contains web content, has been added for testing purpose
 
-wordpress:
-    image: 'wordpress:4.9.3-php7.2-fpm' # image tag that consist of wordpress 4.9.3 version + fpm-server (works with php)
-    container_name: mywp
-    restart: always
-    log_driver: syslog 
-    log_opt:
-      syslog-address: "udp://logsX.papertrailapp.com:XXXXX" # X - hidden digits
-      tag: "wordpress" 
-    links:
-      - mysql # wordpress should be connected to mysql database
-    ports:
-      - 8080:80 # to avoid confilct with nginx, port has been adjusted to 8080
-    environment: 
-      - WORDPRESS_DB_HOST=mysql # "mysql" container record for mariadb which working as db host
-      - WORDPRESS_DB_USER=# please, type in the user
-      - WORDPRESS_DB_PASSWORD=# please, type in the password
-      - WORDPRESS_DB_NAME=wordpress
-    volumes:
-      - ./public:/var/www/html 
+    wordpress:    # image tag that consist of wordpress 4.9.3 version + fpm-server (works with php)
+        image: 'wordpress:4.9.3-php7.2-fpm'  
+        container_name: wordpress
+        restart: always
+        logging:
+            driver: syslog
+            options:
+                syslog-address: "udp://logs6.papertrailapp.com:13439"
+                tag: "wordpress"
+        links:
+            - mysql # wordpress connected to mysql database
+        ports:
+            - 8080:80  # in order to avoid confilct default port 80 has been replaced by 8080
+        environment:
+            - WORDPRESS_DB_HOST=mysql  # db container name
+            - WORDPRESS_DB_USER_FILE=/run/secrets/db_user  # docker secrets hidden data, 
+            - WORDPRESS_DB_PASSWORD_FILE=/run/secrets/db_pass  # dockers secrets hidden data, 
+            - WORDPRESS_DB_NAME=wordpress
+        volumes:
+            - ./public:/var/www/html
+        secrets:          # dockers secrets has been applied
+            - db_pass
+            - db_user
 
-mysql:
-    image: 'mariadb' 
-    container_name: myma
-    restart: always
-    log_driver: syslog
-    log_opt:
-      syslog-address: "udp://logsX.papertrailapp.com:XXXXX"
-      tag: "mysql"
-    ports:
-      - '3306:3306'
-    volumes:
-      - ./db-data:/var/lib/mysql # host directory was created for test purpose, not a mndatory operation
-      - ./logs:/var/log # host directory was created for test purpose, not a mndatory operation
-    environment:
-      - MYSQL_ROOT_PASSWORD=#please, type the password
+    mysql:
+        image: 'mariadb'
+        restart: always
+        container_name: mysql
+        logging:
+             driver: syslog
+             options:
+                 syslog-address: "udp://logs6.papertrailapp.com:13439"
+                 tag: "mysql"
+        ports:
+            - '3306:3306'
+        volumes:
+            - ./db-data:/var/lib/mysql   # volume has been created for testing purpose, not a mandatory thing
+            - ./logs:/var/log            # volume has been created for testing purpose, not a mandatory thing
+        environment:
+            - MYSQL_ROOT_PASSWORD_FILE=/run/secrets/db_pass
+        secrets:
+            - db_pass
 
 # container below is a mandatory container to collect data for DataDogHQ metrics
-dd-agent:
-    image: 'store/datadog/agent:6.4.1'
-    container_name: mydd
-    restart: always
-    links:
-     - nginx   # was added to make sure data from nginx is collected, not a mandatory option
-     - mysql   # was added to make sure data from mysql is collected, not a mandatory option
-    volumes: # next 3 rows were are added as per insturction on datadoghq documantation. Briefly it allows dd-agent to collect running containers metrics
-     - /var/run/docker.sock:/var/run/docker.sock:ro
-     - /proc/:/host/proc/:ro
-     - /sys/fs/cgroup/:/host/sys/fs/cgroup:ro
-    environment:
-     - DD_API_KEY=#please, type the DD API KEY here, provided by DataDotHQ service to connect metrics to appropriate DataDogHQ account
-```
+
+    dd-agent:
+        image: 'store/datadog/agent:6.4.1'
+        container_name: dd-agent
+        restart: always
+        links:
+            - nginx
+            - mysql
+        volumes:
+            - /var/run/docker.sock:/var/run/docker.sock:ro
+            - /proc/:/host/proc/:ro
+            - /sys/fs/cgroup/:/host/sys/fs/cgroup:ro
+        environment:
+            - DD_API_KEY=9222ef752bb7c5820a9a57a44e6aaaad # key which allows data to be sent to appropriate (mine) account
+
 
 Here below you can find nginx configuration file which main purpose is to enable php module and set index.php as the default page.
 
@@ -122,7 +138,7 @@ server {
         location ~ \.php$ {
                 include fastcgi_params;
                 fastcgi_index index.php; # index.php - defauly page to open
-                fastcgi_pass  mywp:9000; # mywp container which is actually Wordpress+FPM (fpm web-server that's working with php requests)
+                fastcgi_pass  wordpress:9000; # wordpress container which is actually Wordpress+FPM (fpm web-server that's working with php requests)
                 fastcgi_param SCRIPT_FILENAME /var/www/html/$fastcgi_script_name; (path to the scrip file which is in our case named "index.php")
 	}
 }
@@ -131,4 +147,4 @@ server {
 
 This part of the task here above is represented by ***docker-compose.yml*** file and ***nginx*** folder with conf file inside.
 
-***cred.zip*** file is password protected and contains papertail and datadoghq account credentials.
+***cred.zip*** file is password protected and contains papertail and datadoghq credentials as well as docker secret files.
