@@ -36,6 +36,7 @@ Nginx+Wordpress+Mysql(maridb) docker-based system has been built with help of do
 
 version: '3.7'
 
+# docker secrets to provide some basic data hide
 secrets:
     db_pass:
         file: ./db_pass.txt
