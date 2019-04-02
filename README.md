@@ -118,10 +118,11 @@ services:
             - /sys/fs/cgroup/:/host/sys/fs/cgroup:ro
         environment:
             - DD_API_KEY=9222ef752bb7c5820a9a57a44e6aaaad # key which allows data to be sent to appropriate (mine) account
-
+```
 
 Here below you can find nginx configuration file which main purpose is to enable php module and set index.php as the default page.
 
+```sh
 server {
 
 	listen 80;   
@@ -142,7 +143,7 @@ server {
                 fastcgi_param SCRIPT_FILENAME /var/www/html/$fastcgi_script_name; (path to the scrip file which is in our case named "index.php")
 	}
 }
-
+```
 
 
 This part of the task here above is represented by ***docker-compose.yml*** file and ***nginx*** folder with conf file inside.
